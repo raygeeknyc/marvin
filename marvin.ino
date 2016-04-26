@@ -28,7 +28,7 @@
 #define DEFAULT_LOCATION 90
 #define MAX_DISTANCE 200
 #define MIN_DISTANCE 0
-#define PING_INTERVAL_MS 20
+#define PING_INTERVAL_MS 1
 
 #define SWEEPS_COUNT 3
 
@@ -164,9 +164,10 @@ int getPing() {
 */
 int getPing() {
  if (next_ping_at > millis()) {
-#ifdef _DEBUG
-  Serial.println("old distance ");
-#endif
+   #ifdef _DEBUG
+   Serial.print("old distance: ");
+   Serial.println(current_distance);
+   #endif
    return current_distance;
  }
   digitalWrite(PIN_PING_TRIG, LOW); 
@@ -180,20 +181,20 @@ int getPing() {
   int duration = pulseIn(PIN_PING_ECHO, HIGH);
 
   if (duration <= 0) {
-#ifdef _DEBUG
-  Serial.println("carry over distance ");
-  duration = last_ping_duration;
-#endif
+    #ifdef _DEBUG
+    Serial.println("carry over distance ");
+    #endif
+    duration = last_ping_duration;
   }
   last_ping_duration = duration;
   //Calculate the distance (in cm) based on the speed of sound.
   float HR_dist = duration/58.2;
-#ifdef _DEBUG
-  Serial.print("distance ");
-  Serial.println(HR_dist);
-#endif
   next_ping_at = millis() + PING_INTERVAL_MS;
   current_distance = int(HR_dist);
+  #ifdef _DEBUG
+  Serial.print("new distance ");
+  Serial.println(HR_dist);
+  #endif
   return current_distance;
 }
 
@@ -223,7 +224,16 @@ void pointAt(int loc) {
 }
 
 boolean isDistanceChanged() {
+  #ifdef _DEBUG
+  Serial.println("isDistanceChanged()");
+  #endif
   current_sleep_distance = getDistance();
+  #ifdef _DEBUG
+  Serial.print("current: ");
+  Serial.print(current_sleep_distance);
+  Serial.print(" prev: ");
+  Serial.println(previous_sleep_distance);
+  #endif
 
   boolean movement = abs(current_sleep_distance - previous_sleep_distance) > (DISTANCE_CHANGE_THRESHOLD_CM);
   previous_sleep_distance = current_sleep_distance;
@@ -385,11 +395,22 @@ void loop() {
 #ifdef _DEBUG
       Serial.println("Stopped sweeping");
 #endif
-      previous_sleep_distance = current_sleep_distance = current_distance;
       bleep();
       pointAt(min_location);
+      #ifdef _DEBUG
+      Serial.println("read distance");
+      #endif
+      delay(100);
+      previous_sleep_distance = current_sleep_distance = current_distance = getDistance();
+      #ifdef _DEBUG
+      Serial.print("previous sleep: ");
+      Serial.print(previous_sleep_distance);
+      Serial.print(" current sleep: ");
+      Serial.print(current_sleep_distance);
+      Serial.print(" current: ");
+      Serial.println(current_distance);
+      #endif
       startLedPulsing();
-      getDistance();         // consume one distance reading to eliminate a spurious distance change detection
     }
   }
 
