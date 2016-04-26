@@ -12,8 +12,12 @@
  **/
 
 #define _DEBUG
+#define _USE_NEWPING_LIBRARY
 
-//#include <NewPing.h>  // it's too finicky, see getPing()
+#ifdef _USE_NEWPING_LIBRARY
+#include <NewPing.h>
+#endif
+
 #include <Servo.h> 
 
 #define PIN_LED 5
@@ -23,12 +27,12 @@
 #define PIN_SPEAKER 2
 
 #define PING_SAMPLES 5
+#define PING_MIN_INTERVAL_MS 1
 
 #define DISTANCE_CHANGE_THRESHOLD_CM 5
 #define DEFAULT_LOCATION 90
 #define MAX_DISTANCE 200
 #define MIN_DISTANCE 0
-#define PING_INTERVAL_MS 1
 
 #define SWEEPS_COUNT 3
 
@@ -45,7 +49,10 @@
 int current_distance, last_ping_duration;
 
 Servo myservo;  // create servo object to control a servo 
-//NewPing sonar(PIN_PING_TRIG, PIN_PING_ECHO, DEFAULT_DISTANCE); // NewPing setup of pins and maximum distance.
+
+#ifdef _USE_NEWPING_LIBRARY
+NewPing sonar(PIN_PING_TRIG, PIN_PING_ECHO, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
+#endif
 
 int sweepPos        =   MIN_POS;
 bool Dir;                         // Servo direction
@@ -64,7 +71,7 @@ int sweep_swing_remaining_count;
 unsigned long int led_step_at;
 unsigned long int shine_end_at;
 
-int getDistance() {
+int getSampledDistance() {
   int sum = 0, min = 9999, max = -1;
   for (int i = 0; i < PING_SAMPLES; i++) {
     int sample = getPing();
@@ -144,11 +151,20 @@ void blinkLed() {
   }
 }
 
-/*
 int getPing() {
  if (next_ping_at > millis()) {
+   #ifdef _DEBUG
+   Serial.print("Reusing old distance: ");
+   Serial.println(current_distance);
+   #endif
    return current_distance;
  }
+  current_distance = getPingSensorReading();
+  return current_distance;
+}
+
+#ifdef _USE_NEWPING_LIBRARY
+int getPingSensorReading() {
  int cm = 0;
  while (cm==0) {
   cm = sonar.ping_cm();
@@ -157,19 +173,10 @@ int getPing() {
   Serial.print("Distance ");
   Serial.println(cm);
 #endif 
- current_distance = cm;
- next_ping_at = millis() + PING_INTERVAL_MS;
  return cm;
 }
-*/
-int getPing() {
- if (next_ping_at > millis()) {
-   #ifdef _DEBUG
-   Serial.print("old distance: ");
-   Serial.println(current_distance);
-   #endif
-   return current_distance;
- }
+#else
+int getPingSensorReading() {
   digitalWrite(PIN_PING_TRIG, LOW); 
   delayMicroseconds(2); 
 
@@ -181,22 +188,22 @@ int getPing() {
   int duration = pulseIn(PIN_PING_ECHO, HIGH);
 
   if (duration <= 0) {
-    #ifdef _DEBUG
-    Serial.println("carry over distance ");
-    #endif
+    Serial.println("Impossible error reading distance!");
     duration = last_ping_duration;
   }
   last_ping_duration = duration;
+  
   //Calculate the distance (in cm) based on the speed of sound.
   float HR_dist = duration/58.2;
-  next_ping_at = millis() + PING_INTERVAL_MS;
+  next_ping_at = millis() + PING_MIN_INTERVAL_MS;
   current_distance = int(HR_dist);
   #ifdef _DEBUG
-  Serial.print("new distance ");
+  Serial.print("Distance: ");
   Serial.println(HR_dist);
   #endif
-  return current_distance;
+  return int(HR_dist);
 }
+#endif
 
 void pointAt(int loc) {
 #ifdef _DEBUG
@@ -227,7 +234,7 @@ boolean isDistanceChanged() {
   #ifdef _DEBUG
   Serial.println("isDistanceChanged()");
   #endif
-  current_sleep_distance = getDistance();
+  current_sleep_distance = getSampledDistance();
   #ifdef _DEBUG
   Serial.print("current: ");
   Serial.print(current_sleep_distance);
@@ -324,7 +331,7 @@ void sweep() {
     }
   }
 
-  last_distance = getDistance();
+  last_distance = getSampledDistance();
   if (last_distance<min_distance) {
     min_distance=last_distance;
     min_location=sweepPos;
@@ -375,7 +382,7 @@ void setup() {
   while (last_ping_duration == 0) {
     getPing();
   }
-  prev_distance = getDistance();
+  prev_distance = getSampledDistance();
   isDistanceChanged();
 #ifdef _DEBUG
   Serial.println("/setup");
@@ -401,7 +408,7 @@ void loop() {
       Serial.println("read distance");
       #endif
       delay(100);
-      previous_sleep_distance = current_sleep_distance = current_distance = getDistance();
+      previous_sleep_distance = current_sleep_distance = current_distance = getSampledDistance();
       #ifdef _DEBUG
       Serial.print("previous sleep: ");
       Serial.print(previous_sleep_distance);
