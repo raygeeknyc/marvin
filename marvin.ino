@@ -11,9 +11,10 @@
  *
  **/
 
-#define _NODEBUG
-
+// Build configuration flags
+// #define _DEBUG
 #define _USE_NEWPING_LIBRARY
+
 #ifdef _USE_NEWPING_LIBRARY
 #include <NewPing.h>
 #endif
