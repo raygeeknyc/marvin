@@ -11,13 +11,14 @@
  *
  **/
 
-#define _DEBUG
-#define _USE_NEWPING_LIBRARY
+#define _NODEBUG
 
+#define _USE_NEWPING_LIBRARY
 #ifdef _USE_NEWPING_LIBRARY
 #include <NewPing.h>
 #endif
 
+#include <TimerFreeTone.h>
 #include <Servo.h> 
 
 #define PIN_LED 5
@@ -26,8 +27,8 @@
 #define PIN_PING_ECHO 8
 #define PIN_SPEAKER 2
 
-#define PING_SAMPLES 5
-#define PING_MIN_INTERVAL_MS 1
+#define PING_SAMPLES 3
+#define PING_MIN_INTERVAL_MS 20
 
 #define DISTANCE_CHANGE_THRESHOLD_CM 5
 #define DEFAULT_LOCATION 90
@@ -71,17 +72,8 @@ int sweep_swing_remaining_count;
 unsigned long int led_step_at;
 unsigned long int shine_end_at;
 
-int getSampledDistance() {
-  int sum = 0, min = 9999, max = -1;
-  for (int i = 0; i < PING_SAMPLES; i++) {
-    int sample = getPing();
-    if (sample < min) min = sample;
-    if (sample > max) max = sample;
-    sum += sample;
-  }
-  sum -= (min + max);
-  current_distance = sum / (PING_SAMPLES - 2);
-  return current_distance;
+int getDistance() {
+  return getPing();
 }
 
 int led_level;
@@ -89,7 +81,7 @@ bool led_dir;
 #define LED_OFF 0
 #define LED_MIN 3
 #define LED_MAX 12
-#define LED_STEP_DURATION 100
+#define LED_STEP_DURATION 200    
 #define SHINE_DURATION 3000
 #define BLINK_DURATION 100
 #define LED_SHINE_BRIGHTNESS 255
@@ -163,38 +155,46 @@ int getPing() {
   return current_distance;
 }
 
-#ifdef _USE_NEWPING_LIBRARY
 int getPingSensorReading() {
+#ifdef _USE_NEWPING_LIBRARY
  int cm = 0;
  while (cm==0) {
-  cm = sonar.ping_cm();
+  int echoTime = sonar.ping_median(PING_SAMPLES);
+  cm = sonar.convert_cm(echoTime);
  }
 #ifdef _DEBUG
   Serial.print("Distance ");
   Serial.println(cm);
 #endif 
  return cm;
-}
 #else
-int getPingSensorReading() {
-  digitalWrite(PIN_PING_TRIG, LOW); 
-  delayMicroseconds(2); 
+  int sum = 0, min_sample = 9999, max_sample = -1;
+  for (int i = 0; i < PING_SAMPLES; i++) {
 
-  digitalWrite(PIN_PING_TRIG, HIGH);
-  delayMicroseconds(10); 
+    digitalWrite(PIN_PING_TRIG, LOW); 
+    delayMicroseconds(2); 
 
-  digitalWrite(PIN_PING_TRIG, LOW);
+    digitalWrite(PIN_PING_TRIG, HIGH);
+    delayMicroseconds(10); 
 
-  int duration = pulseIn(PIN_PING_ECHO, HIGH);
+    digitalWrite(PIN_PING_TRIG, LOW);
 
-  if (duration <= 0) {
-    Serial.println("Impossible error reading distance!");
-    duration = last_ping_duration;
+    int duration = pulseIn(PIN_PING_ECHO, HIGH);
+
+    if (duration < 0) {
+      Serial.println("Impossible error reading distance!");
+      duration = last_ping_duration;
+    }
+    last_ping_duration = duration;
+    if (duration < min_sample) min_sample = duration;
+    if (duration > max_sample) max_sample = duration;
+    sum += duration;
   }
-  last_ping_duration = duration;
-  
+  sum -= (min_sample + max_sample);
+  current_distance = sum / (PING_SAMPLES - 2);
+
   //Calculate the distance (in cm) based on the speed of sound.
-  float HR_dist = duration/58.2;
+  float HR_dist = current_distance/58.2;
   next_ping_at = millis() + PING_MIN_INTERVAL_MS;
   current_distance = int(HR_dist);
   #ifdef _DEBUG
@@ -202,8 +202,8 @@ int getPingSensorReading() {
   Serial.println(HR_dist);
   #endif
   return int(HR_dist);
-}
 #endif
+}
 
 void pointAt(int loc) {
 #ifdef _DEBUG
@@ -234,7 +234,7 @@ boolean isDistanceChanged() {
   #ifdef _DEBUG
   Serial.println("isDistanceChanged()");
   #endif
-  current_sleep_distance = getSampledDistance();
+  current_sleep_distance = getDistance();
   #ifdef _DEBUG
   Serial.print("current: ");
   Serial.print(current_sleep_distance);
@@ -245,9 +245,9 @@ boolean isDistanceChanged() {
   boolean movement = abs(current_sleep_distance - previous_sleep_distance) > (DISTANCE_CHANGE_THRESHOLD_CM);
   previous_sleep_distance = current_sleep_distance;
   if (movement) {
-#ifdef _DEBUG
+  #ifdef _DEBUG
   Serial.println("moved"); 
-#endif
+  #endif
   }
   return movement;
 }
@@ -331,7 +331,7 @@ void sweep() {
     }
   }
 
-  last_distance = getSampledDistance();
+  last_distance = getDistance();
   if (last_distance<min_distance) {
     min_distance=last_distance;
     min_location=sweepPos;
@@ -356,10 +356,10 @@ boolean isPointed() {
 void setup() { 
   next_ping_at = millis();
   last_ping_duration = 0;
-#ifdef _DEBUG
+  #ifdef _DEBUG
   Serial.begin(115200);
   Serial.println("setup");
-#endif
+  #endif
   pinMode(PIN_PING_TRIG,OUTPUT);
   pinMode(PIN_PING_ECHO,INPUT);
   
@@ -379,18 +379,16 @@ void setup() {
   pointed_at = 0L;
   shine_end_at = 0;
   startLedPulsing();
-  while (last_ping_duration == 0) {
-    getPing();
-  }
-  prev_distance = getSampledDistance();
+  getPing();
+  prev_distance = getDistance();
   isDistanceChanged();
-#ifdef _DEBUG
+  #ifdef _DEBUG
   Serial.println("/setup");
-#endif
+  #endif
 }
 
 void bleep() {
-  tone(PIN_SPEAKER, BLEEP_FREQUENCY, BLEEP_DURATION_MS);
+  TimerFreeTone(PIN_SPEAKER, BLEEP_FREQUENCY, BLEEP_DURATION_MS);
 }
 
 void loop() {  
@@ -398,17 +396,17 @@ void loop() {
   sweep();
 
   if (!isSweeping()) {
+    #ifdef _DEBUG
+    Serial.println("not sweeping");
+    #endif
     if (!isPointed()) {
-#ifdef _DEBUG
+      #ifdef _DEBUG
       Serial.println("Stopped sweeping");
-#endif
+      #endif
       bleep();
       pointAt(min_location);
-      #ifdef _DEBUG
-      Serial.println("read distance");
-      #endif
       delay(100);
-      previous_sleep_distance = current_sleep_distance = current_distance = getSampledDistance();
+      previous_sleep_distance = current_sleep_distance = current_distance = getDistance();
       #ifdef _DEBUG
       Serial.print("previous sleep: ");
       Serial.print(previous_sleep_distance);
@@ -422,9 +420,9 @@ void loop() {
   }
 
   if (isResting()) {
-#ifdef _DEBUG
+    #ifdef _DEBUG
     Serial.println("*");
-#endif
+    #endif
    if (isDistanceChanged()) {
      startSweeping();
     }
