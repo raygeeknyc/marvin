@@ -21,7 +21,6 @@ Adafruit_SoftServo myServo;  // create servo object to control a servo
 
 #define SWEEPS_COUNT 3
 
-#define ANALOG_READ_DELAY 10
 #define POINTED_DELAY 3000
 
 #define MAX_POS 180
