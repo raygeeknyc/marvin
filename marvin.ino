@@ -14,124 +14,67 @@
 
 Adafruit_SoftServo myServo;  // create servo object to control a servo 
 
+// Hardware pin on the ATTiny85
 #define PIN_LED 0
 #define PIN_SERVO 1
 #define PIN_PING_TRIG 3
-#define PIN_PING_ECHO 2
+#define PIN_PING_ECHO 4
 
-#define SWEEPS_COUNT 3
+// Servo declarations
+#define SERVO_MAX_POS 180
+#define SERVO_MIN_POS 0
+#define SERVO_MOVEMENT_DELAY_MS 15
+#define SERVO_SWEEP_STEP 5
 
-#define POINTED_DELAY 3000
-
-#define MAX_POS 180
-#define MIN_POS 0
-#define MOVEMENT_DELAY 3000
-#define SWEEP_STEP 5
-
-#define DISTANCE_CHANGE_THRESHOLD_CM 8
-#define DEFAULT_DISTANCE 100
-#define DEFAULT_LOCATION 90
-
-//#define _DEBUG
-
-int sweepPos        =   MIN_POS;
-bool Dir;                         // Servo direction
-int max_distance, min_distance, last_distance, prev_distance;  // min and max distance seen during a sweep() and the last reading
-int max_location, min_location;  // Servo position at max and min distance readings during a sweep()
-
-int current_sleep_distance;
-int previous_sleep_distance;
-
-boolean sweep_complete;
-unsigned long pointed_at;
-
-int sweep_swing_remaining_count;
-
-unsigned long int led_step_at;
-unsigned long int shine_end_at;
-
-int led_level;
-bool led_dir;
+// LED declarations
 #define LED_MIN 0
-#define LED_MAX 12
-#define LED_STEP_DURATION 100
-#define SHINE_DURATION 3000
-#define BLINK_DURATION 100
-#define LED_SHINE_BRIGHTNESS 255
+#define LED_MAX 255
+#define LED_STEP 5
+#define LED_PULSE_DUR_MS 40
+int LEDLevel;
+unsigned long int lastLEDPulse;
 
-void startLedPulsing() {
-  led_level = LED_MAX;
-  led_dir = false;
-  led_step_at = 0;
-  shine_end_at = 0;
-  analogWrite(PIN_LED, led_level);
+// Ping sensor declarations
+#define PING_SAMPLES 5
+#define MAX_DISTANCE_CM 200
+#define DISTANCE_DELTA_THRESHOLD_CM 8
+#define LOOP_MIN_TIME_MS 80
+#define LOOP_TIMER_STEP_MS 5
+NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE_CM); // NewPing setup of pins and maximum distance.
+int dist, prev_dist;
+const int DEFAULT_LOCATION = (SERVO_MAX_POS - SERVO_MIN_POS) / 2;
+int min_distance;  // min distance seen during a sweep()
+int min_location;  // Servo position at min distance readings during a sweep()
+
+
+void startLEDPulsing() {
+  LEDLevel = LED_MIN;
+  LEDStep = LED_STEP;
 }
 
-void expireLed() {
-  if (isShining()) {
-    return;
-  }
-  if (shine_end_at != 0) {
-    shine_end_at = 0;
-    analogWrite(PIN_LED, LED_MIN);
-    return;
-  }
-  if (isSweeping()) {
-    return;
-  }  
-  if (millis() <= led_step_at) {
-    return;
-  }
-  led_step_at = millis() + LED_STEP_DURATION;
-
-  if (led_dir) {
-    if (led_level < LED_MAX) {
-      led_level++;
-    } 
-    else { 
-      led_dir = false;
+void refreshPulsingLED() {
+  if ((millis() - lastLEDPulse) > LED_PULSE_DUR_MS) {
+    lEDLevel += LEDStep;
+    if (LEDLevel < LED_MIN || LEDLevel > LED_MAX) {
+      LEDStep *= -1;
+      LEDLevel += LEDStep;
     }
-  } 
-  else {
-    if (led_level > LED_MIN) {
-      led_level--;
-    } 
-    else { 
-      led_dir = true;
-    }
-  }
-  analogWrite(PIN_LED, led_level);
-}
-
-boolean isShining() {
-  return (shine_end_at != 0) && (shine_end_at > millis());
-}
-
-void blinkLed() {
-  if (! isShining()) {
-    analogWrite(PIN_LED, LED_SHINE_BRIGHTNESS);
-    shine_end_at = millis() + BLINK_DURATION;
+    analogWrite(PIN_LED, LEDLevel);
+    lastLEDPulse = millis();
   }
 }
 
-int getDistance() {
-  digitalWrite(PIN_PING_TRIG, LOW); 
-  delayMicroseconds(2); 
-
-  digitalWrite(PIN_PING_TRIG, HIGH);
-  delayMicroseconds(10); 
-
-  digitalWrite(PIN_PING_TRIG, LOW);
-
-  int duration = pulseIn(PIN_PING_ECHO, HIGH);
-
-  if (duration <= 0) {
-    return DEFAULT_DISTANCE;
+int getDistanceCM() {
+// Return smoothed ping sensor reading
+  int sum = 0, min = 9999, max = -1;
+  for (int i = 0; i < PING_SAMPLES; i++) {
+    int sample = sonar.ping_cm();
+    if (sample < min) min = sample;
+    if (sample > max) max = sample;
+    sum += sample;
   }
-  //Calculate the distance (in cm) based on the speed of sound.
-  float HR_dist = duration/58.2;
-  //Serial.println(HR_dist);
-  return int(HR_dist);
+  sum -= (min + max);
+  return (sum / (PING_SAMPLES - 2));
 }
 
 void pointAt(int loc) {
@@ -159,18 +102,6 @@ void pointAt(int loc) {
   pointed_at = millis();
 }
 
-boolean isDistanceChanged() {
-  current_sleep_distance = getDistance();
-
-  boolean movement = abs(current_sleep_distance - previous_sleep_distance) > (DISTANCE_CHANGE_THRESHOLD_CM);
-  previous_sleep_distance = current_sleep_distance;
-  if (movement) {
- #ifdef _DEBUG
-  Serial.println("moved"); 
-#endif
-  }
-  return movement;
-}
 
 void point(int loc) {
   myServo.write(loc);
@@ -178,9 +109,6 @@ void point(int loc) {
 }
 
 void startSweeping() {
-#ifdef _DEBUG
-  Serial.println("StartSweeping");
-#endif
   min_distance = DEFAULT_DISTANCE;
   max_distance = DEFAULT_DISTANCE;
   min_location = DEFAULT_LOCATION;
@@ -188,24 +116,11 @@ void startSweeping() {
   sweep_swing_remaining_count = SWEEPS_COUNT;
   pointed_at = 0L;
   stopLedPulsing();
-#ifdef _DEBUG
-  Serial.print("Sweeping from ");
-  Serial.println(sweepPos);
-#endif
-
 }
 
 void stopLedPulsing() {
   led_level = LED_MIN;
   analogWrite(PIN_LED, led_level);
-}
-
-boolean isSweeping() {
-  return sweep_swing_remaining_count > 0;
-}
-
-boolean isResting() {
-  return (!isSweeping() && ((pointed_at + POINTED_DELAY) < millis()));
 }
 
 void sweep() {
@@ -265,19 +180,15 @@ boolean isPointed() {
 }
 
 void setup() { 
-#ifdef _DEBUG
-  Serial.begin(9600);
-  Serial.println("setup");
-#endif
   pinMode(PIN_PING_TRIG, OUTPUT);
   pinMode(PIN_PING_ECHO, INPUT);
-  /** software servo **/
-  OCR0A = 0xAF;            // any number is OK
-  TIMSK |= _BV(OCIE0A);    // Turn on the compare interrupt (below!)
-  /** /software servo **/
-
-  myServo.attach(PIN_SERVO);
   pinMode(PIN_LED, OUTPUT);
+  myServo.attach(PIN_SERVO);
+
+  servoSweepPos = SERVO_MIN_POS;
+  led_level = LED_MIN;
+  lastLEDPulse = 0;
+
   // blink confirmation sequence
   for (int i=0; i<4; i++) {
     digitalWrite(PIN_LED, HIGH);
