@@ -50,6 +50,7 @@ int min_location;  // Servo position at min distance readings during a sweep()
 void startLEDPulsing() {
   LEDLevel = LED_MIN;
   LEDStep = LED_STEP;
+  lastLEDPulse = 0;
 }
 
 void refreshPulsingLED() {
