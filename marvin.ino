@@ -53,6 +53,11 @@ void startLEDPulsing() {
   lastLEDPulse = 0;
 }
 
+void stopLEDPulsing() {
+  LEDLevel = LED_MIN;
+  analogWrite(PIN_LED, LEDLevel);
+}
+
 void refreshPulsingLED() {
   if ((millis() - lastLEDPulse) > LED_PULSE_DUR_MS) {
     lEDLevel += LEDStep;
@@ -78,174 +83,41 @@ int getDistanceCM() {
   return (sum / (PING_SAMPLES - 2));
 }
 
-void pointAt(int loc) {
-#ifdef _DEBUG
-  Serial.print("pointing to ");
-  Serial.println(loc);
-#endif
-  if (sweepPos > loc) {
-#ifdef _DEBUG
-    Serial.print("down from ");
-    Serial.println(sweepPos);
-#endif
-    for (int pos=sweepPos; pos>loc; pos--) {
-      point(pos);
-    }
-  } else if (sweepPos < loc) {
-#ifdef _DEBUG
-    Serial.print("up from ");
-    Serial.println(sweepPos);
-#endif
-    for (int pos=sweepPos; pos<loc; pos++) {
-      point(pos);
-    }
-  }
-  pointed_at = millis();
+void pointAt(int pos) {
+  myServo.write(pos);
+  myServo.refresh();
+  delay(SERVO_MOVEMENT_DELAY_MS);}
 }
 
-
-void point(int loc) {
-  myServo.write(loc);
-  delayMicroseconds(MOVEMENT_DELAY);     // waits 15ms for the servo to reach the position 
-}
-
-void startSweeping() {
-  min_distance = DEFAULT_DISTANCE;
-  max_distance = DEFAULT_DISTANCE;
-  min_location = DEFAULT_LOCATION;
-  max_location = DEFAULT_LOCATION;
-  sweep_swing_remaining_count = SWEEPS_COUNT;
-  pointed_at = 0L;
-  stopLedPulsing();
-}
-
-void stopLedPulsing() {
-  led_level = LED_MIN;
-  analogWrite(PIN_LED, led_level);
-}
-
-void sweep() {
-  if (!isSweeping()) {
-    return;
+void setup() {
+  long timerStart = millis();
+  // Pulse LED for 2 seconds
+  startLEDPulsing();
+  while (millis() < timerStart+2000) {
+    refreshPulsingLED();
   }
 
-  point(sweepPos);
-  delayMicroseconds(MOVEMENT_DELAY);           // Give servo some time to move before giving it a new position
-
-  if (Dir == 1) {
-    if (sweepPos < MAX_POS) {
-      sweepPos+=SWEEP_STEP;                     // Rotate servo to 180 degrees
-    } else {                                  // Servo hit upper limit
-      sweepPos = MAX_POS;                     // Keep servo angle in bounds
-      Dir=!Dir;                               // Switch direction
-      sweep_swing_remaining_count--;
-#ifdef _DEBUG
-      Serial.print("bounce ");
-      Serial.println(sweep_swing_remaining_count);
-#endif
-    }
-  } else {
-    if (sweepPos > MIN_POS) {
-      sweepPos-=SWEEP_STEP;                     // Rotate servo to 0 degrees
-    } else {                                  // Servo hit lower limit
-      sweepPos = MIN_POS;                     // Keep servo angle in bounds
-      Dir=!Dir;                               // switch direction
-      sweep_swing_remaining_count--;
-#ifdef _DEBUG
-      Serial.print("bounce ");
-      Serial.println(sweep_swing_remaining_count);
-#endif
-    }
+  myServo.attach(SERVO_PIN);
+  // Sweep the servo back and forth
+  pointAt(SERVO_MIN_POS);
+  for (int i=SERVO_MIN_POS; i<=SERVO_MAX_POS; i+=SERVO_SWEEP_STEP) {
+    pointAt(i);
+  }
+  for (; i>=SERVO_MIN_POS; i-=SERVO_SWEEP_STEP) {
+    pointAt(i);
   }
 
-  last_distance = getDistance();
-  if (last_distance<min_distance) {
-    min_distance=last_distance;
-    min_location=sweepPos;
-#ifdef _DEBUG
-      Serial.print("New min ");
-      Serial.print(last_distance);
-      Serial.print(" at ");
-      Serial.println(sweepPos);
-#endif
-    blinkLed();
-  }
-  if (last_distance>max_distance) {
-    max_distance=last_distance;
-    max_location=sweepPos;
-  }
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  // Store an initial distance reading
+  dist = getDistanceCM();
 }
 
-boolean isPointed() {
-  return pointed_at != 0;
-}
+void loop() {
+  int loop_timer = millis();
 
-void setup() { 
-  pinMode(PIN_PING_TRIG, OUTPUT);
-  pinMode(PIN_PING_ECHO, INPUT);
-  pinMode(PIN_LED, OUTPUT);
-  myServo.attach(PIN_SERVO);
-
-  servoSweepPos = SERVO_MIN_POS;
-  led_level = LED_MIN;
-  lastLEDPulse = 0;
-
-  // blink confirmation sequence
-  for (int i=0; i<4; i++) {
-    digitalWrite(PIN_LED, HIGH);
-    delay(100);
-    digitalWrite(PIN_LED, LOW);
-    delay(50);
-  }
-  analogWrite(PIN_LED, LED_MIN);
-  Dir = 1;
-  sweep_swing_remaining_count = 0;
-  pointed_at = 0L;
-  shine_end_at = 0;
-  startLedPulsing();
-  prev_distance = getDistance();
-  isDistanceChanged();
-#ifdef _DEBUG
-  Serial.println("/setup");
-#endif
-}
-
-void loop() {  
-  expireLed();
-  sweep();
-
-  if (!isSweeping()) {
-    if (!isPointed()) {
-#ifdef _DEBUG
-      Serial.println("Stopped sweeping");
-#endif
-      pointAt(min_location);
-      getDistance();  // consume one distance reading to eliminate a spurious distance change detecti
-      startLedPulsing();
-    }
-  }
-
-  if (isResting()) {
-#ifdef _DEBUG
-    //Serial.println("*");
-#endif
-   if (isDistanceChanged()) {
-     startSweeping();
-     return;
-    }
-  }
-}
-
-
-// We'll take advantage of the built in millis() timer that goes off
-// to keep track of time, and refresh the servo every 20 milliseconds
-volatile uint8_t counter = 0;
-SIGNAL(TIMER0_COMPA_vect) {
-  // this gets called every 2 milliseconds
-  counter += 2;
-  // every 20 milliseconds, refresh the servos!
-  if (counter >= 20) {
-    counter = 0;
-    myServo.refresh();
+  // Guarantee a minimum time spent in each loop iteration
+  while ((millis() - loop_timer) < LOOP_MIN_TIME_MS) {
+    delay(LOOP_TIMER_STEP_MS);
   }
 }
