@@ -11,8 +11,7 @@
  **/
 
 #include <Adafruit_SoftServo.h>  // SoftwareServo (works on non PWM pins)
-
-Adafruit_SoftServo myServo;  // create servo object to control a servo 
+#include <NewPing.h>
 
 // Hardware pin on the ATTiny85
 #define PIN_LED 0
@@ -25,6 +24,7 @@ Adafruit_SoftServo myServo;  // create servo object to control a servo
 #define SERVO_MIN_POS 0
 #define SERVO_MOVEMENT_DELAY_MS 15
 #define SERVO_SWEEP_STEP 5
+Adafruit_SoftServo myServo;  // create servo object to control a servo 
 
 // LED declarations
 #define LED_MIN 0
@@ -32,6 +32,7 @@ Adafruit_SoftServo myServo;  // create servo object to control a servo
 #define LED_STEP 5
 #define LED_PULSE_DUR_MS 40
 int LEDLevel;
+int LEDStep;
 unsigned long int lastLEDPulse;
 
 // Ping sensor declarations
@@ -40,11 +41,11 @@ unsigned long int lastLEDPulse;
 #define DISTANCE_DELTA_THRESHOLD_CM 8
 #define LOOP_MIN_TIME_MS 80
 #define LOOP_TIMER_STEP_MS 5
-NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE_CM); // NewPing setup of pins and maximum distance.
 int dist, prev_dist;
 const int DEFAULT_LOCATION = (SERVO_MAX_POS - SERVO_MIN_POS) / 2;
 int min_distance;  // min distance seen during a sweep()
 int min_location;  // Servo position at min distance readings during a sweep()
+NewPing sonar(PIN_PING_TRIG, PIN_PING_ECHO, MAX_DISTANCE_CM); // NewPing setup of pins and maximum distance.
 
 
 void startLEDPulsing() {
@@ -60,7 +61,7 @@ void stopLEDPulsing() {
 
 void refreshPulsingLED() {
   if ((millis() - lastLEDPulse) > LED_PULSE_DUR_MS) {
-    lEDLevel += LEDStep;
+    LEDLevel += LEDStep;
     if (LEDLevel < LED_MIN || LEDLevel > LED_MAX) {
       LEDStep *= -1;
       LEDLevel += LEDStep;
@@ -86,7 +87,7 @@ int getDistanceCM() {
 void pointAt(int pos) {
   myServo.write(pos);
   myServo.refresh();
-  delay(SERVO_MOVEMENT_DELAY_MS);}
+  delay(SERVO_MOVEMENT_DELAY_MS);
 }
 
 void setup() {
@@ -97,18 +98,18 @@ void setup() {
     refreshPulsingLED();
   }
 
-  myServo.attach(SERVO_PIN);
+  myServo.attach(PIN_SERVO);
   // Sweep the servo back and forth
   pointAt(SERVO_MIN_POS);
   for (int i=SERVO_MIN_POS; i<=SERVO_MAX_POS; i+=SERVO_SWEEP_STEP) {
     pointAt(i);
   }
-  for (; i>=SERVO_MIN_POS; i-=SERVO_SWEEP_STEP) {
+  for (int i=SERVO_MAX_POS; i>=SERVO_MIN_POS; i-=SERVO_SWEEP_STEP) {
     pointAt(i);
   }
 
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
+  pinMode(PIN_PING_TRIG, OUTPUT);
+  pinMode(PIN_PING_ECHO, INPUT);
   // Store an initial distance reading
   dist = getDistanceCM();
 }
