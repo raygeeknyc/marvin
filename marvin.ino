@@ -10,10 +10,10 @@
  *
  **/
 
-#include <Adafruit_SoftServo.h>  // SoftwareServo (works on non PWM pins)
+#include <Adafruit_SoftServo.h> 
 #include <NewPing.h>
 
-// Hardware pin on the ATTiny85
+// Hardware pin assignment on the ATTiny85
 #define PIN_LED 0
 #define PIN_SERVO 1
 #define PIN_PING_TRIG 3
@@ -24,7 +24,7 @@
 #define SERVO_MIN_POS 0
 #define SERVO_MOVEMENT_DELAY_MS 15
 #define SERVO_SWEEP_STEP 5
-Adafruit_SoftServo myServo;  // create servo object to control a servo 
+Adafruit_SoftServo myServo;
 
 // LED declarations
 #define LED_MIN 0
@@ -44,7 +44,7 @@ unsigned long int lastLEDPulseAt;
 int dist, prev_dist;
 const int DEFAULT_LOCATION = (SERVO_MAX_POS - SERVO_MIN_POS) / 2;
 int min_distance;  // min distance seen during a sweep()
-int min_location;  // Servo position at min distance readings during a sweep()
+int min_location;  // Servo position at min distance reading during a sweep()
 NewPing sonar(PIN_PING_TRIG, PIN_PING_ECHO, MAX_DISTANCE_CM); // NewPing setup of pins and maximum distance.
 
 
