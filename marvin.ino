@@ -33,7 +33,7 @@ Adafruit_SoftServo myServo;  // create servo object to control a servo
 #define LED_PULSE_DUR_MS 40
 int LEDLevel;
 int LEDStep;
-unsigned long int lastLEDPulse;
+unsigned long int lastLEDPulseAt;
 
 // Ping sensor declarations
 #define PING_SAMPLES 5
@@ -51,7 +51,7 @@ NewPing sonar(PIN_PING_TRIG, PIN_PING_ECHO, MAX_DISTANCE_CM); // NewPing setup o
 void startLEDPulsing() {
   LEDLevel = LED_MIN;
   LEDStep = LED_STEP;
-  lastLEDPulse = 0;
+  lastLEDPulseAt = 0;
 }
 
 void stopLEDPulsing() {
@@ -60,14 +60,14 @@ void stopLEDPulsing() {
 }
 
 void refreshPulsingLED() {
-  if ((millis() - lastLEDPulse) > LED_PULSE_DUR_MS) {
+  if ((millis() - lastLEDPulseAt) > LED_PULSE_DUR_MS) {
     LEDLevel += LEDStep;
     if (LEDLevel < LED_MIN || LEDLevel > LED_MAX) {
       LEDStep *= -1;
       LEDLevel += LEDStep;
     }
     analogWrite(PIN_LED, LEDLevel);
-    lastLEDPulse = millis();
+    lastLEDPulseAt = millis();
   }
 }
 
