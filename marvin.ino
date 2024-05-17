@@ -23,14 +23,19 @@
 #define SERVO_POS_MAX 180
 #define SERVO_POS_MIN 0
 #define SERVO_MOVEMENT_DELAY_MS 15
+#define POINT_DUR_MS 3000
+#define POST_POINT_WAIT_MS 8000
 #define SERVO_SWEEP_STEP 5
 #define SWEEP_COUNT 2
 unsigned long int lastServoPointAt;
 Adafruit_SoftServo myServo;
 
 // LED declarations
-#define LED_MIN 20
-#define LED_MAX 200
+#define LED_PULSE_MIN 20
+#define LED_PULSE_MAX 200
+#define LED_MIN 0
+#define LED_MAX 255
+
 #define LED_STEP 5
 #define LED_PULSE_DUR_MS 15
 #define LONG_PULSE_DUR_MS 2000
@@ -41,42 +46,48 @@ unsigned long int lastLEDPulseAt;
 // Ping sensor declarations
 #define PING_SAMPLES 5
 #define MAX_DISTANCE_CM 200
-#define DISTANCE_DELTA_THRESHOLD_CM 8
-#define LOOP_MIN_TIME_MS 5000
+const int MIN_POS_DELTA_THRESHOLD = SERVO_SWEEP_STEP * 2;
+#define LOOP_MIN_TIME_MS 3000
 #define LOOP_TIMER_STEP_MS 5
-int dist, prev_dist;
+
 const int DEFAULT_LOCATION = (SERVO_POS_MAX - SERVO_POS_MIN) / 2;
-int min_distance;  // min distance seen during a sweep()
-int min_location;  // Servo position at min distance reading during a sweep()
+int minDistance;  // min distance seen during a sweep()
+int minLocation;  // Servo position at min distance reading during a sweep()
+int prevLocation;  // The last sweep's closest object's heading
 NewPing sonar(PIN_PING_TRIG, PIN_PING_ECHO, MAX_DISTANCE_CM); // NewPing setup of pins and maximum distance.
 
 
 void startLEDPulsing(bool startHigh=false) {
   if (startHigh) {
-    LEDLevel = LED_MAX;
+    LEDLevel = LED_PULSE_MAX;
     LEDStep = LED_STEP*-1;
   } else {
-    LEDLevel = LED_MIN;
+    LEDLevel = LED_PULSE_MIN;
     LEDStep = LED_STEP;
   }
   lastLEDPulseAt = 0;
 }
 
-void stopLEDPulsing(int offVal=0) {
-  LEDLevel = LED_MIN;
+void stopLEDPulsing(int offVal=LED_MIN) {
+  LEDLevel = LED_PULSE_MIN;
   analogWrite(PIN_LED, offVal);
 }
 
 void refreshPulsingLED() {
   if ((millis() - lastLEDPulseAt) > LED_PULSE_DUR_MS) {
     LEDLevel += LEDStep;
-    if (LEDLevel < LED_MIN || LEDLevel > LED_MAX) {
+    if (LEDLevel < LED_PULSE_MIN || LEDLevel > LED_PULSE_MAX) {
       LEDStep *= -1;
       LEDLevel += LEDStep;
     }
     analogWrite(PIN_LED, LEDLevel);
     lastLEDPulseAt = millis();
   }
+}
+
+void shineLED(int brightness=LED_MAX) {
+  analogWrite(PIN_LED, brightness);
+  lastLEDPulseAt = 0;
 }
 
 int getDistanceCM() {
@@ -105,6 +116,7 @@ void pointAt(int pos) {
 void setup() {
   long timerStart = millis();
   lastServoPointAt = 0;
+  prevLocation = 0;
 
   // Pulse LED for 2 seconds
   startLEDPulsing();
@@ -127,27 +139,49 @@ void setup() {
   pinMode(PIN_PING_ECHO, INPUT);
 
   startLEDPulsing(true);
-  // Store an initial distance reading
-  dist = getDistanceCM();
 };
 
 void loop() {
   unsigned long int loop_timer = millis();
+  int currentDistance;
+  int pos;
 
+  // Sweep and record the servo position where we see the closest object
+  minDistance = MAX_DISTANCE_CM;
+  minLocation = DEFAULT_LOCATION;
   for (int sweep=0; sweep<SWEEP_COUNT; sweep++) {
-    for (int pos=SERVO_POS_MIN; pos<SERVO_POS_MAX; pos+=SERVO_SWEEP_STEP) {
+    for (pos=SERVO_POS_MIN; pos<SERVO_POS_MAX; pos+=SERVO_SWEEP_STEP) {
       refreshPulsingLED();
       pointAt(pos);
+      currentDistance = getDistanceCM();
+      if (currentDistance < minDistance) {
+        minDistance = currentDistance;
+        minLocation = pos;
+      }
     }
   }
-  // Guarantee a minimum time spent in each loop iteration
-  if (millis() > loop_timer) {  // the millis() counter resets to 0
-    while ((millis() - loop_timer) < LOOP_MIN_TIME_MS) {
-      refreshPulsingLED();
+  // Point to the closest thing and shine at it
+  if (abs(minLocation - prevLocation) > MIN_POS_DELTA_THRESHOLD) {
+    prevLocation = minLocation;
+    stopLEDPulsing();
+    int dir=(minLocation<pos?-1:1);
+    shineLED();
+    while (pos != minLocation) {
+        pos+=dir;
+        pointAt(pos);
+        }
+    delay(POINT_DUR_MS);
+    startLEDPulsing();
+    unsigned long int pointFinishedAt = millis();
+    while ((millis() - pointFinishedAt) < POST_POINT_WAIT_MS) {
       delay(LOOP_TIMER_STEP_MS);
+      refreshPulsingLED();
     }
-  } else {
-    refreshPulsingLED();
-    delay(LOOP_TIMER_STEP_MS);  // easy guess
+  }
+
+  // Guarantee a minimum time spent in each loop iteration
+  while ((millis() - loop_timer) < LOOP_MIN_TIME_MS) {
+   refreshPulsingLED();
+   delay(LOOP_TIMER_STEP_MS);
   }
 }
