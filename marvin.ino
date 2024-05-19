@@ -46,6 +46,7 @@ unsigned long int lastLEDPulseAt;
 // Ping sensor declarations
 #define PING_SAMPLES 5
 #define MAX_DISTANCE_CM 200
+#define MIN_POS_DELTA_CM_THRESHOLD 4
 const int MIN_POS_DELTA_THRESHOLD = SERVO_SWEEP_STEP * 2;
 #define LOOP_MIN_TIME_MS 3000
 #define LOOP_TIMER_STEP_MS 5
@@ -54,6 +55,7 @@ const int DEFAULT_LOCATION = (SERVO_POS_MAX - SERVO_POS_MIN) / 2;
 int minDistance;  // min distance seen during a sweep()
 int minLocation;  // Servo position at min distance reading during a sweep()
 int prevLocation;  // The last sweep's closest object's heading
+int prevDistance;  // Used to detect a change in distance while stationary
 NewPing sonar(PIN_PING_TRIG, PIN_PING_ECHO, MAX_DISTANCE_CM); // NewPing setup of pins and maximum distance.
 
 
@@ -146,6 +148,12 @@ void loop() {
   int currentDistance;
   int pos;
 
+  // Wait until we see a change in distance at the current position
+  prevDistance = currentDistance = getDistanceCM();
+  while (abs(currentDistance - prevDistance) > MIN_POS_DELTA_CM_THRESHOLD) {
+    currentDistance = getDistanceCM();
+  }
+
   // Sweep and record the servo position where we see the closest object
   minDistance = MAX_DISTANCE_CM;
   minLocation = DEFAULT_LOCATION;
@@ -160,23 +168,22 @@ void loop() {
       }
     }
   }
+  
   // Point to the closest thing and shine at it
-  if (abs(minLocation - prevLocation) > MIN_POS_DELTA_THRESHOLD) {
-    prevLocation = minLocation;
-    stopLEDPulsing();
-    int dir=(minLocation<pos?-1:1);
-    shineLED();
-    while (pos != minLocation) {
-        pos+=dir;
-        pointAt(pos);
-        }
-    delay(POINT_DUR_MS);
-    startLEDPulsing();
-    unsigned long int pointFinishedAt = millis();
-    while ((millis() - pointFinishedAt) < POST_POINT_WAIT_MS) {
-      delay(LOOP_TIMER_STEP_MS);
-      refreshPulsingLED();
-    }
+  prevLocation = minLocation;
+  stopLEDPulsing();
+  int dir=(minLocation<pos?-1:1);
+  shineLED();
+  while (pos != minLocation) {
+    pos+=dir;
+    pointAt(pos);
+  }
+  delay(POINT_DUR_MS);
+  startLEDPulsing();
+  unsigned long int pointFinishedAt = millis();
+  while ((millis() - pointFinishedAt) < POST_POINT_WAIT_MS) {
+    delay(LOOP_TIMER_STEP_MS);
+    refreshPulsingLED();
   }
 
   // Guarantee a minimum time spent in each loop iteration
