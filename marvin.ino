@@ -22,9 +22,9 @@
 // Servo declarations
 #define SERVO_POS_MAX 180
 #define SERVO_POS_MIN 0
-#define SERVO_MOVEMENT_DELAY_MS 15
+#define SERVO_MOVEMENT_DELAY_MS 25
 #define POINT_DUR_MS 3000
-#define POST_POINT_WAIT_MS 8000
+#define POST_POINT_WAIT_MS 4000
 #define SERVO_SWEEP_STEP 5
 #define SWEEP_COUNT 2
 unsigned long int lastServoPointAt;
@@ -48,14 +48,13 @@ unsigned long int lastLEDPulseAt;
 #define MAX_DISTANCE_CM 200
 #define MIN_POS_DELTA_CM_THRESHOLD 4
 const int MIN_POS_DELTA_THRESHOLD = SERVO_SWEEP_STEP * 2;
-#define LOOP_MIN_TIME_MS 3000
+#define LOOP_MIN_TIME_MS 10000
 #define LOOP_TIMER_STEP_MS 5
 
 const int DEFAULT_LOCATION = (SERVO_POS_MAX - SERVO_POS_MIN) / 2;
 int minDistance;  // min distance seen during a sweep()
 int minLocation;  // Servo position at min distance reading during a sweep()
 int prevLocation;  // The last sweep's closest object's heading
-int prevDistance;  // Used to detect a change in distance while stationary
 NewPing sonar(PIN_PING_TRIG, PIN_PING_ECHO, MAX_DISTANCE_CM); // NewPing setup of pins and maximum distance.
 
 
@@ -145,13 +144,15 @@ void setup() {
 
 void loop() {
   unsigned long int loop_timer = millis();
-  int currentDistance;
+  int currentDistance, prevDistance;
   int pos;
 
   // Wait until we see a change in distance at the current position
   prevDistance = currentDistance = getDistanceCM();
-  while (abs(currentDistance - prevDistance) > MIN_POS_DELTA_CM_THRESHOLD) {
+  while (abs(currentDistance - prevDistance) < MIN_POS_DELTA_CM_THRESHOLD) {
     currentDistance = getDistanceCM();
+    refreshPulsingLED();
+    delay(LOOP_TIMER_STEP_MS);
   }
 
   // Sweep and record the servo position where we see the closest object
@@ -179,13 +180,11 @@ void loop() {
     pointAt(pos);
   }
   delay(POINT_DUR_MS);
-  startLEDPulsing();
   unsigned long int pointFinishedAt = millis();
   while ((millis() - pointFinishedAt) < POST_POINT_WAIT_MS) {
     delay(LOOP_TIMER_STEP_MS);
-    refreshPulsingLED();
   }
-
+  startLEDPulsing();
   // Guarantee a minimum time spent in each loop iteration
   while ((millis() - loop_timer) < LOOP_MIN_TIME_MS) {
    refreshPulsingLED();
