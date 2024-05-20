@@ -93,7 +93,7 @@ void shineLED(int brightness=LED_MAX) {
 
 int getDistanceCM() {
 // Return smoothed ping sensor reading
-  int sum = 0, min = 9999, max = -1;
+  int sum = 0, min = 99999, max = -99999;
   for (int i = 0; i < PING_SAMPLES; i++) {
     int sample = sonar.ping_cm();
     if (sample < min) min = sample;
