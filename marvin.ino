@@ -148,7 +148,8 @@ void loop() {
   int pos;
 
   // Wait until we see a change in distance at the current position
-  prevDistance = currentDistance = getDistanceCM();
+  currentDistance = getDistanceCM();
+  prevDistance = currentDistance;
   while (abs(currentDistance - prevDistance) < MIN_POS_DELTA_CM_THRESHOLD) {
     currentDistance = getDistanceCM();
     refreshPulsingLED();
