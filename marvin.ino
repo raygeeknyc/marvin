@@ -19,10 +19,12 @@
 #define PIN_PING_TRIG 3
 #define PIN_PING_ECHO 4
 
-// Servo declarations
+// Servo and behavior declarations
 #define SERVO_POS_MAX 180
 #define SERVO_POS_MIN 0
 #define SERVO_MOVEMENT_DELAY_MS 25
+#define LOOP_MIN_TIME_MS 10000
+#define LOOP_TIMER_STEP_MS 5
 #define POINT_DUR_MS 3000
 #define POST_POINT_WAIT_MS 4000
 #define SERVO_SWEEP_STEP 5
@@ -46,10 +48,8 @@ unsigned long int lastLEDPulseAt;
 // Ping sensor declarations
 #define PING_SAMPLES 5
 #define MAX_DISTANCE_CM 200
-#define MIN_POS_DELTA_CM_THRESHOLD 4
+#define MIN_POS_DELTA_CM_THRESHOLD 6
 const int MIN_POS_DELTA_THRESHOLD = SERVO_SWEEP_STEP * 2;
-#define LOOP_MIN_TIME_MS 10000
-#define LOOP_TIMER_STEP_MS 5
 
 const int DEFAULT_LOCATION = (SERVO_POS_MAX - SERVO_POS_MIN) / 2;
 int minDistance;  // min distance seen during a sweep()
