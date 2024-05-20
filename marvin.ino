@@ -78,6 +78,9 @@ void stopLEDPulsing(int offVal=LED_MIN) {
 }
 
 void refreshPulsingLED() {
+  if (lastLEDPulseAt> millis()) 
+    return;
+  
   if ((millis() - lastLEDPulseAt) > LED_PULSE_DUR_MS) {
     LEDLevel += LEDStep;
     if (LEDLevel < LED_PULSE_MIN || LEDLevel > LED_PULSE_MAX) {
@@ -91,7 +94,7 @@ void refreshPulsingLED() {
 
 void shineLED(int brightness=LED_MAX) {
   analogWrite(PIN_LED, brightness);
-  lastLEDPulseAt = 0;
+  lastLEDPulseAt = (unsigned long int) -1;
 }
 
 int getPingReading() {
@@ -108,6 +111,7 @@ int getDistanceCM() {
 // Return smoothed ping sensor reading
   int sum = 0, min = 99999, max = -99999;
   for (int i = 0; i < PING_SAMPLES; i++) {
+    refreshPulsingLED();
     int sample = getPingReading();
     if (sample < min) min = sample;
     if (sample > max) max = sample;
