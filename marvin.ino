@@ -144,13 +144,13 @@ void setup() {
 
 void loop() {
   unsigned long int loop_timer = millis();
-  int currentDistance, prevDistance;
+  int currentDistance, prevDistance, distanceDelta;
   int pos;
 
   // Wait until we see a change in distance at the current position
   currentDistance = getDistanceCM();
   prevDistance = currentDistance;
-  while (abs(currentDistance - prevDistance) < MIN_POS_DELTA_CM_THRESHOLD) {
+  while (distanceDelta=(currentDistance - prevDistance),abs(distanceDelta) < MIN_POS_DELTA_CM_THRESHOLD) {
     currentDistance = getDistanceCM();
     refreshPulsingLED();
     delay(LOOP_TIMER_STEP_MS);
