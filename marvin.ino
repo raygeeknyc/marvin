@@ -51,6 +51,8 @@ unsigned long int lastLEDPulseAt;
 #define MIN_POS_DELTA_CM_THRESHOLD 6
 #define PING_DELAY_MS 70
 const int MIN_POS_DELTA_THRESHOLD = SERVO_SWEEP_STEP * 2;
+unsigned long int lastPingAt;
+
 
 const int DEFAULT_LOCATION = (SERVO_POS_MAX - SERVO_POS_MIN) / 2;
 int minDistance;  // min distance seen during a sweep()
