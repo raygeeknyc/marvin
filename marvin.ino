@@ -19,6 +19,8 @@
 #define PIN_PING_TRIG 3
 #define PIN_PING_ECHO 4
 
+const unsigned long int FOREVER_MS = (unsigned long int) -1;
+
 // Servo and behavior declarations
 #define SERVO_POS_MAX 180
 #define SERVO_POS_MIN 0
@@ -46,7 +48,7 @@ int LEDStep;
 unsigned long int lastLEDPulseAt;
 
 // Ping sensor declarations
-#define PING_SAMPLES 5
+#define PING_SAMPLES 3
 #define MAX_DISTANCE_CM 200
 #define MIN_POS_DELTA_CM_THRESHOLD 6
 #define PING_DELAY_MS 70
@@ -94,11 +96,11 @@ void refreshPulsingLED() {
 
 void shineLED(int brightness=LED_MAX) {
   analogWrite(PIN_LED, brightness);
-  lastLEDPulseAt = (unsigned long int) -1;
+  lastLEDPulseAt = FOREVER_MS;
 }
 
 int getPingReading() {
-  long remainingPingDelay = PING_DELAY_MS - (millis() - lastPingAt;
+  long remainingPingDelay = PING_DELAY_MS - (millis() - lastPingAt);
   if (remainingPingDelay > 0) {
     delay(remainingPingDelay);
   }
@@ -134,6 +136,7 @@ void pointAt(int pos) {
 void setup() {
   long timerStart = millis();
   lastServoPointAt = 0;
+  lastPingAt = 0;
   prevLocation = 0;
 
   // Pulse LED for 2 seconds
