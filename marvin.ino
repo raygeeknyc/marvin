@@ -49,6 +49,7 @@ unsigned long int lastLEDPulseAt;
 #define PING_SAMPLES 5
 #define MAX_DISTANCE_CM 200
 #define MIN_POS_DELTA_CM_THRESHOLD 6
+#define PING_DELAY_MS 70
 const int MIN_POS_DELTA_THRESHOLD = SERVO_SWEEP_STEP * 2;
 
 const int DEFAULT_LOCATION = (SERVO_POS_MAX - SERVO_POS_MIN) / 2;
@@ -91,11 +92,21 @@ void shineLED(int brightness=LED_MAX) {
   lastLEDPulseAt = 0;
 }
 
+int getPingReading() {
+  long remainingPingDelay = PING_DELAY_MS - (millis() - lastPingAt;
+  if (remainingPingDelay > 0) {
+    delay(remainingPingDelay);
+  }
+  int distance = sonar.ping_cm();
+  lastPingAt = millis();
+  return distance;
+}
+
 int getDistanceCM() {
 // Return smoothed ping sensor reading
   int sum = 0, min = 99999, max = -99999;
   for (int i = 0; i < PING_SAMPLES; i++) {
-    int sample = sonar.ping_cm();
+    int sample = getPingReading();
     if (sample < min) min = sample;
     if (sample > max) max = sample;
     sum += sample;
