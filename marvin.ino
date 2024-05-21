@@ -43,15 +43,16 @@ Adafruit_SoftServo myServo;
 #define LED_STEP 5
 #define LED_PULSE_DUR_MS 15
 #define LONG_PULSE_DUR_MS 2000
+#define LED_BLINK_DUR_MS 300
 int LEDLevel;
 int LEDStep;
 unsigned long int lastLEDPulseAt;
 
 // Ping sensor declarations
-#define PING_SAMPLES 3
+#define PING_SAMPLES 5
 #define MAX_DISTANCE_CM 200
 #define MIN_POS_DELTA_CM_THRESHOLD 6
-#define PING_DELAY_MS 70
+#define PING_DELAY_MS 80
 const int MIN_POS_DELTA_THRESHOLD = SERVO_SWEEP_STEP * 2;
 unsigned long int lastPingAt;
 
@@ -109,8 +110,11 @@ int getPingReading() {
   return distance;
 }
 
-int getDistanceCM() {
-// Return smoothed ping sensor reading
+int getDistanceCM(bool smooth=true) {
+  if (!smooth) {
+    return getPingReading();
+  }
+  // Return smoothed ping sensor reading
   int sum = 0, min = 99999, max = -99999;
   for (int i = 0; i < PING_SAMPLES; i++) {
     refreshPulsingLED();
@@ -168,14 +172,26 @@ void loop() {
   int pos;
 
   // Wait until we see a change in distance at the current position
-  currentDistance = getDistanceCM();
+  currentDistance = getDistanceCM(false);
   prevDistance = currentDistance;
   while (distanceDelta=(currentDistance - prevDistance),abs(distanceDelta) < MIN_POS_DELTA_CM_THRESHOLD) {
-    currentDistance = getDistanceCM();
+    currentDistance = getDistanceCM(false);
     refreshPulsingLED();
     delay(LOOP_TIMER_STEP_MS);
   }
 
+  stopLEDPulsing(LED_MIN);
+
+  shineLED();
+  delay(LED_BLINK_DUR_MS);
+
+  stopLEDPulsing(LED_MIN);
+  delay(LED_BLINK_DUR_MS);
+
+  shineLED();
+  delay(LED_BLINK_DUR_MS);
+
+  startLEDPulsing();
   // Sweep and record the servo position where we see the closest object
   minDistance = MAX_DISTANCE_CM;
   minLocation = DEFAULT_LOCATION;
@@ -183,7 +199,7 @@ void loop() {
     for (pos=SERVO_POS_MIN; pos<SERVO_POS_MAX; pos+=SERVO_SWEEP_STEP) {
       refreshPulsingLED();
       pointAt(pos);
-      currentDistance = getDistanceCM();
+      currentDistance = getDistanceCM(false);
       if (currentDistance < minDistance) {
         minDistance = currentDistance;
         minLocation = pos;
