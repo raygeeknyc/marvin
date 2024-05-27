@@ -133,8 +133,12 @@ void pointAt(int pos) {
     delay(remainingServoDelay);
   }
   myServo.write(pos);
-  myServo.refresh();
+  refreshServo();
   lastServoPointAt = millis();
+}
+
+void refreshServo() {
+    myServo.refresh();
 }
 
 void setup() {
@@ -197,8 +201,8 @@ void loop() {
   minLocation = DEFAULT_LOCATION;
   for (int sweep=0; sweep<SWEEP_COUNT; sweep++) {
     for (pos=SERVO_POS_MIN; pos<SERVO_POS_MAX; pos+=SERVO_SWEEP_STEP) {
-      refreshPulsingLED();
       pointAt(pos);
+      refreshPulsingLED();
       currentDistance = getDistanceCM(false);
       if (currentDistance < minDistance) {
         minDistance = currentDistance;
