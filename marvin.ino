@@ -209,6 +209,15 @@ void loop() {
         minLocation = pos;
       }
     }
+    for (pos=SERVO_POS_MAX; pos>SERVO_POS_MIN; pos-=SERVO_SWEEP_STEP) {
+      pointAt(pos);
+      refreshPulsingLED();
+      currentDistance = getDistanceCM(false);
+      if (currentDistance < minDistance) {
+        minDistance = currentDistance;
+        minLocation = pos;
+      }
+    }
   }
   
   // Point to the closest thing and shine at it
